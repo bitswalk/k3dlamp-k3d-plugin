@@ -1,0 +1,6 @@
+# Artifact Hub repository metadata. Spec:
+# https://github.com/artifacthub/hub/blob/master/docs/metadata/artifacthub-repo.yml
+#
+# The ID of the bitswalk repository on Artifact Hub. When it matches, Artifact Hub
+# marks the repository as a verified publisher the next time it processes it.
+repositoryID: 4be0b5a4-e498-41c8-849f-dd394bbe51a6

@@ -1,5 +1,7 @@
 # k3dlamp k3d plugin
 
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/bitswalk)](https://artifacthub.io/packages/search?repo=bitswalk)
+
 A Headlamp Desktop plugin that creates and deletes k3d clusters. It is built for [k3dlamp](https://github.com/bitswalk/k3dlamp) and published on [Artifact Hub](https://artifacthub.io/packages/headlamp/bitswalk/k3dlamp-k3d-plugin).
 
 The plugin checks that k3d works, lists its clusters, creates a cluster from a k3d config file, and deletes one. k3d adds each new cluster to the default kubeconfig. Headlamp watches that file, so the cluster appears in the cluster list as `k3d-<name>`.
