@@ -1,0 +1,5 @@
+[
+  { "tool": "k3d", "args": ["cluster", "list", "-o", "json"] },
+  { "tool": "k3d", "args": ["cluster", "create", "--config"], "allowTrailingArgs": true },
+  { "tool": "k3d", "args": ["cluster", "delete"], "allowTrailingArgs": true }
+]

@@ -1,0 +1,43 @@
+{
+  "name": "@bitswalk/headlamp-k3d",
+  "version": "0.1.0",
+  "description": "Create and delete k3d clusters from Headlamp Desktop.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bitswalk/k3dlamp-k3d-plugin.git"
+  },
+  "scripts": {
+    "start": "headlamp-plugin start",
+    "build": "headlamp-plugin build",
+    "dev:install": "npm run build && mkdir -p ${K3DLAMP_PLUGINS_DIR:-$HOME/.config/k3dlamp/plugins}/headlamp-k3d && cp dist/main.js package.json ${K3DLAMP_PLUGINS_DIR:-$HOME/.config/k3dlamp/plugins}/headlamp-k3d/",
+    "format": "headlamp-plugin format",
+    "lint": "headlamp-plugin lint",
+    "lint-fix": "headlamp-plugin lint --fix",
+    "package": "headlamp-plugin package",
+    "tsc": "headlamp-plugin tsc",
+    "test": "headlamp-plugin test"
+  },
+  "keywords": [
+    "headlamp",
+    "headlamp-plugin",
+    "kubernetes",
+    "k3d"
+  ],
+  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "eslintConfig": {
+    "extends": [
+      "@headlamp-k8s",
+      "prettier",
+      "plugin:jsx-a11y/recommended"
+    ]
+  },
+  "overrides": {
+    "typescript": "5.6.2",
+    "vitest": "3.2.7",
+    "@vitest/coverage-istanbul": "3.2.7"
+  },
+  "devDependencies": {
+    "@kinvolk/headlamp-plugin": "^0.14.0"
+  }
+}
