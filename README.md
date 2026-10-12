@@ -24,9 +24,9 @@ The feature needs Headlamp built from `main` after v0.45.0. The plugin builds ag
 
 | Situation | Message |
 | --- | --- |
-| The build doesn't grant k3d, or this is a browser deployment | "This Headlamp build does not grant the plugin any k3d command." |
-| `k3d` isn't on `PATH` | "k3d is not installed, or not on the PATH Headlamp was started with." |
-| Consent was denied | "The k3d command was denied in the consent prompt. Headlamp keeps that choice." |
+| The build doesn't grant k3d, or this is a browser deployment | "This k3dlamp build does not grant the plugin any k3d command." |
+| `k3d` isn't on `PATH` | "k3d is not installed, or not on the PATH k3dlamp was started with." |
+| Consent was denied | "The k3d command was denied in the consent prompt. k3dlamp keeps that choice." |
 | k3d fails, for example Docker is down | k3d's own stderr |
 
 ## Develop

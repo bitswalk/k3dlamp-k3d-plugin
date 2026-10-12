@@ -42,7 +42,7 @@ function ClusterLink({ name }: { name: string }) {
   const known = K8s.useClustersConf() ?? {};
   const context = contextName(name);
   if (!known[context]) {
-    return <span title="Not in Headlamp's kubeconfig">{context}</span>;
+    return <span title="Not in your kubeconfig">{context}</span>;
   }
   return (
     <Link routeName="cluster" params={{ cluster: context }}>

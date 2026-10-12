@@ -31,6 +31,9 @@ const SPAWN_FAILED = -1;
 const NOT_AUTHORIZED = -2;
 const CONSENT_DENIED = -3;
 
+// The desktop product this plugin ships in, named in messages to the operator.
+const APP_NAME = 'k3dlamp';
+
 // k3d prefixes kubeconfig contexts with "k3d-".
 const CONTEXT_PREFIX = 'k3d-';
 
@@ -92,12 +95,12 @@ export function describeFailure({ code, stderr }: RunResult): string {
   switch (code) {
     case SPAWN_FAILED:
       return /ENOENT/.test(stderr)
-        ? 'k3d is not installed, or not on the PATH Headlamp was started with.'
+        ? `k3d is not installed, or not on the PATH ${APP_NAME} was started with.`
         : `k3d could not be started: ${stderr.trim() || 'unknown error'}`;
     case NOT_AUTHORIZED:
-      return 'This Headlamp build does not grant the plugin this k3d command.';
+      return `This ${APP_NAME} build does not grant the plugin this k3d command.`;
     case CONSENT_DENIED:
-      return 'The k3d command was denied in the consent prompt. Headlamp keeps that choice.';
+      return `The k3d command was denied in the consent prompt. ${APP_NAME} keeps that choice.`;
     default:
       return stderr.trim() || `k3d exited with code ${code}.`;
   }
@@ -126,7 +129,7 @@ export async function probe(): Promise<K3dStatus> {
   if (!commandsGranted()) {
     return {
       state: 'unavailable',
-      reason: 'This Headlamp build does not grant the plugin any k3d command.',
+      reason: `This ${APP_NAME} build does not grant the plugin any k3d command.`,
     };
   }
   const result = await run(LIST_ARGS);

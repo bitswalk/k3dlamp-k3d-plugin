@@ -60,7 +60,7 @@ describe('probe', () => {
   it('reports a build without the k3d grant', async () => {
     expect(await probe()).toEqual({
       state: 'unavailable',
-      reason: expect.stringMatching(/does not grant/),
+      reason: 'This k3dlamp build does not grant the plugin any k3d command.',
     });
   });
 
@@ -78,10 +78,14 @@ describe('probe', () => {
   });
 
   it.each([
-    [-1, 'spawn k3d ENOENT', /not installed/],
+    [
+      -1,
+      'spawn k3d ENOENT',
+      /^k3d is not installed, or not on the PATH k3dlamp was started with\.$/,
+    ],
     [-1, 'spawn k3d EACCES', /could not be started: spawn k3d EACCES/],
-    [-2, '', /does not grant/],
-    [-3, '', /denied in the consent prompt/],
+    [-2, '', /^This k3dlamp build does not grant/],
+    [-3, '', /denied in the consent prompt\. k3dlamp keeps that choice\.$/],
     [1, 'FATA[0000] Cannot connect to the Docker daemon\n', /Cannot connect to the Docker daemon$/],
     [1, '\x1b[31mFATA\x1b[0m[0000] Docker is down\n', /^FATA\[0000\] Docker is down$/],
   ])('explains exit code %i', async (code, stderr, reason) => {
