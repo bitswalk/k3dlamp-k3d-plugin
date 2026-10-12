@@ -49,7 +49,24 @@ jobs:
           cat > notes.md <<EOF
           Plugin archive \`$archive\`, SHA-256 \`$digest\`.
 
-          To ship it in k3dlamp, run \`scripts/update-plugin.sh $GITHUB_REF_NAME\` there.
+          Install it from Artifact Hub in a Headlamp desktop build that grants its k3d
+          commands, such as k3dlamp. See [Requirements](https://github.com/bitswalk/k3dlamp-k3d-plugin#requirements).
           EOF
           gh release create "$GITHUB_REF_NAME" release/* \
             --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag
+
+      # Artifact Hub reads metadata from main, so commit it there; it lists the
+      # new version on its next scan.
+      - name: Publish Artifact Hub metadata
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          archive="$(cd release && ls -- *.tar.gz)"
+          digest="$(cut -d' ' -f1 release/SHA256SUMS)"
+          git fetch -q origin main
+          git checkout -q -B main origin/main
+          ./scripts/artifacthub-pkg.sh "$version" "$archive" "$digest"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "artifacthub/$version"
+          git commit -q -m "artifacthub: publish $version"
+          git push -q origin main

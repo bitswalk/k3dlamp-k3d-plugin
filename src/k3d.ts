@@ -1,7 +1,8 @@
 /**
  * The plugin's whole contract with the laptop: three k3d invocations.
  *
- * Each one matches a `runCommands` grant in the product's app-build-manifest.json.
+ * Headlamp runs them only in a desktop build whose app-build-manifest.json grants
+ * each one to this plugin in `runCommands`; stock Headlamp releases grant none.
  * No other module may call `pluginRunCommand`, and nothing here builds argv from
  * free-form input: create and delete each append exactly one validated argument.
  */
@@ -26,13 +27,20 @@ export const LIST_ARGS = ['cluster', 'list', '-o', 'json'];
 export const CREATE_PREFIX = ['cluster', 'create', '--config'];
 export const DELETE_PREFIX = ['cluster', 'delete'];
 
+/** The invocations a build must grant, as an operator would type them. */
+export const REQUIRED_COMMANDS = [
+  [K3D, ...LIST_ARGS].join(' '),
+  [K3D, ...CREATE_PREFIX, '<path>'].join(' '),
+  [K3D, ...DELETE_PREFIX, '<name>'].join(' '),
+];
+
+/** Where the README explains the grants, for builds that lack them. */
+export const GRANTS_URL = 'https://github.com/bitswalk/k3dlamp-k3d-plugin#requirements';
+
 // Exit codes Headlamp's main process reports when no k3d process ran.
 const SPAWN_FAILED = -1;
 const NOT_AUTHORIZED = -2;
 const CONSENT_DENIED = -3;
-
-// The desktop product this plugin ships in, named in messages to the operator.
-const APP_NAME = 'k3dlamp';
 
 // k3d prefixes kubeconfig contexts with "k3d-".
 const CONTEXT_PREFIX = 'k3d-';
@@ -64,9 +72,11 @@ export interface K3dCluster {
 
 export type K3dStatus =
   | { state: 'ready'; clusters: K3dCluster[] }
+  // This build's manifest doesn't grant the plugin its k3d commands.
+  | { state: 'ungranted' }
   | { state: 'unavailable'; reason: string };
 
-/** Whether this Headlamp build granted the plugin its k3d commands. */
+/** Whether this build granted the plugin any of its k3d commands. */
 export function commandsGranted(): boolean {
   return typeof pluginRunCommand === 'function';
 }
@@ -95,12 +105,12 @@ export function describeFailure({ code, stderr }: RunResult): string {
   switch (code) {
     case SPAWN_FAILED:
       return /ENOENT/.test(stderr)
-        ? `k3d is not installed, or not on the PATH ${APP_NAME} was started with.`
+        ? 'k3d is not installed, or not on the PATH this app was started with.'
         : `k3d could not be started: ${stderr.trim() || 'unknown error'}`;
     case NOT_AUTHORIZED:
-      return `This ${APP_NAME} build does not grant the plugin this k3d command.`;
+      return `This build's app-build-manifest.json does not grant the plugin this k3d command. See ${GRANTS_URL}`;
     case CONSENT_DENIED:
-      return `The k3d command was denied in the consent prompt. ${APP_NAME} keeps that choice.`;
+      return 'The k3d command was denied in the consent prompt, and the app keeps that choice.';
     default:
       return stderr.trim() || `k3d exited with code ${code}.`;
   }
@@ -127,12 +137,12 @@ export function parseClusterList(stdout: string): K3dCluster[] {
  */
 export async function probe(): Promise<K3dStatus> {
   if (!commandsGranted()) {
-    return {
-      state: 'unavailable',
-      reason: `This ${APP_NAME} build does not grant the plugin any k3d command.`,
-    };
+    return { state: 'ungranted' };
   }
   const result = await run(LIST_ARGS);
+  if (result.code === NOT_AUTHORIZED) {
+    return { state: 'ungranted' };
+  }
   if (result.code !== 0) {
     return { state: 'unavailable', reason: describeFailure(result) };
   }

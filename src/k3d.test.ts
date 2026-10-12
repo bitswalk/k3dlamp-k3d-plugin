@@ -8,9 +8,12 @@ import {
   createCluster,
   DELETE_PREFIX,
   deleteCluster,
+  describeFailure,
+  GRANTS_URL,
   K3D,
   LIST_ARGS,
   probe,
+  REQUIRED_COMMANDS,
   stripAnsi,
   validateConfigPath,
 } from './k3d';
@@ -57,11 +60,13 @@ const LIST_OUTPUT = JSON.stringify([
 ]);
 
 describe('probe', () => {
-  it('reports a build without the k3d grant', async () => {
-    expect(await probe()).toEqual({
-      state: 'unavailable',
-      reason: 'This k3dlamp build does not grant the plugin any k3d command.',
-    });
+  it('reports a build that injects no command capability as ungranted', async () => {
+    expect(await probe()).toEqual({ state: 'ungranted' });
+  });
+
+  it('reports a build that refuses the list grant as ungranted', async () => {
+    fakeRunCommand(-2);
+    expect(await probe()).toEqual({ state: 'ungranted' });
   });
 
   it('lists clusters with the exact granted argv and keeps only display fields', async () => {
@@ -81,11 +86,10 @@ describe('probe', () => {
     [
       -1,
       'spawn k3d ENOENT',
-      /^k3d is not installed, or not on the PATH k3dlamp was started with\.$/,
+      /^k3d is not installed, or not on the PATH this app was started with\.$/,
     ],
     [-1, 'spawn k3d EACCES', /could not be started: spawn k3d EACCES/],
-    [-2, '', /^This k3dlamp build does not grant/],
-    [-3, '', /denied in the consent prompt\. k3dlamp keeps that choice\.$/],
+    [-3, '', /denied in the consent prompt, and the app keeps that choice\.$/],
     [1, 'FATA[0000] Cannot connect to the Docker daemon\n', /Cannot connect to the Docker daemon$/],
     [1, '\x1b[31mFATA\x1b[0m[0000] Docker is down\n', /^FATA\[0000\] Docker is down$/],
   ])('explains exit code %i', async (code, stderr, reason) => {
@@ -101,6 +105,14 @@ describe('probe', () => {
       state: 'unavailable',
       reason: expect.stringMatching(/Unexpected k3d output/),
     });
+  });
+});
+
+describe('describeFailure', () => {
+  it('points a refused grant at the README', () => {
+    expect(describeFailure({ code: -2, stdout: '', stderr: '' })).toBe(
+      `This build's app-build-manifest.json does not grant the plugin this k3d command. See ${GRANTS_URL}`
+    );
   });
 });
 
@@ -159,6 +171,14 @@ describe('command-grants.json', () => {
   // Products copy these grants into their manifest's runCommands, so they must
   // describe exactly the argv this module sends.
   const grants = JSON.parse(readFileSync(resolve(__dirname, '../command-grants.json'), 'utf8'));
+
+  it('matches the commands the page lists for builds without them', () => {
+    expect(REQUIRED_COMMANDS).toEqual([
+      'k3d cluster list -o json',
+      'k3d cluster create --config <path>',
+      'k3d cluster delete <name>',
+    ]);
+  });
 
   it('lists exactly list, create and delete', () => {
     expect(grants).toEqual([

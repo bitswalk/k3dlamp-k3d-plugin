@@ -2,6 +2,7 @@ import { ConfigStore, K8s } from '@kinvolk/headlamp-plugin/lib';
 import { Link, SectionBox, SimpleTable } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
 import {
   Alert,
+  AlertTitle,
   Box,
   Button,
   CircularProgress,
@@ -10,6 +11,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  Link as ExternalLink,
   TextField,
 } from '@mui/material';
 import React from 'react';
@@ -19,9 +21,11 @@ import {
   createCluster,
   deleteCluster,
   describeFailure,
+  GRANTS_URL,
   K3dCluster,
   K3dStatus,
   probe,
+  REQUIRED_COMMANDS,
   stripAnsi,
   validateConfigPath,
 } from './k3d';
@@ -48,6 +52,29 @@ function ClusterLink({ name }: { name: string }) {
     <Link routeName="cluster" params={{ cluster: context }}>
       {context}
     </Link>
+  );
+}
+
+/** Explains, in a build that lacks them, the grants this plugin needs. */
+function GrantsRequired() {
+  return (
+    <Alert severity="warning">
+      <AlertTitle>This build doesn't let the plugin run k3d</AlertTitle>
+      Headlamp runs a plugin's local commands only when the desktop build's app-build-manifest.json
+      grants them. This plugin needs a build that grants it these three commands, which stock
+      Headlamp releases don't:
+      <Box component="ul" sx={{ my: 1 }}>
+        {REQUIRED_COMMANDS.map(command => (
+          <li key={command}>
+            <code>{command}</code>
+          </li>
+        ))}
+      </Box>
+      k3dlamp is a Headlamp build that grants them.{' '}
+      <ExternalLink href={GRANTS_URL} target="_blank" rel="noreferrer">
+        How to grant them in your own build
+      </ExternalLink>
+    </Alert>
   );
 }
 
@@ -136,6 +163,7 @@ export default function K3dPage() {
             Checking k3d…
           </Alert>
         )}
+        {status?.state === 'ungranted' && <GrantsRequired />}
         {status?.state === 'unavailable' && (
           <Alert
             severity="error"
@@ -180,61 +208,63 @@ export default function K3dPage() {
         )}
       </SectionBox>
 
-      <SectionBox title="Create a cluster">
-        <Box display="flex" gap={2} alignItems="flex-start">
-          <TextField
-            label="k3d config file"
-            placeholder="/path/to/cluster.yaml"
-            helperText={pathError ?? 'Absolute path to a k3d.io/v1alpha5 Simple config.'}
-            error={pathError !== null}
-            value={configPath}
-            onChange={event => setConfigPath(event.target.value)}
-            disabled={!ready || running !== null}
-            fullWidth
-            size="small"
-          />
-          <Button
-            variant="contained"
-            onClick={handleCreate}
-            disabled={!ready || running !== null || validateConfigPath(configPath) !== null}
-          >
-            Create
-          </Button>
-        </Box>
-
-        {running && (
-          <Alert severity="info" icon={<CircularProgress size={18} />} sx={{ mt: 2 }}>
-            {running}…
-          </Alert>
-        )}
-        {outcome && (
-          <Alert severity={outcome.severity} sx={{ mt: 2 }}>
-            {outcome.text}
-            {outcome.severity === 'success' && outcome.cluster && (
-              <>
-                {' '}
-                Open <ClusterLink name={outcome.cluster} />.
-              </>
-            )}
-          </Alert>
-        )}
-        {output && (
-          <Box
-            component="pre"
-            sx={{
-              mt: 2,
-              p: 1,
-              maxHeight: 320,
-              overflow: 'auto',
-              fontSize: '0.8rem',
-              whiteSpace: 'pre-wrap',
-              bgcolor: 'action.hover',
-            }}
-          >
-            {output}
+      {status?.state !== 'ungranted' && (
+        <SectionBox title="Create a cluster">
+          <Box display="flex" gap={2} alignItems="flex-start">
+            <TextField
+              label="k3d config file"
+              placeholder="/path/to/cluster.yaml"
+              helperText={pathError ?? 'Absolute path to a k3d.io/v1alpha5 Simple config.'}
+              error={pathError !== null}
+              value={configPath}
+              onChange={event => setConfigPath(event.target.value)}
+              disabled={!ready || running !== null}
+              fullWidth
+              size="small"
+            />
+            <Button
+              variant="contained"
+              onClick={handleCreate}
+              disabled={!ready || running !== null || validateConfigPath(configPath) !== null}
+            >
+              Create
+            </Button>
           </Box>
-        )}
-      </SectionBox>
+
+          {running && (
+            <Alert severity="info" icon={<CircularProgress size={18} />} sx={{ mt: 2 }}>
+              {running}…
+            </Alert>
+          )}
+          {outcome && (
+            <Alert severity={outcome.severity} sx={{ mt: 2 }}>
+              {outcome.text}
+              {outcome.severity === 'success' && outcome.cluster && (
+                <>
+                  {' '}
+                  Open <ClusterLink name={outcome.cluster} />.
+                </>
+              )}
+            </Alert>
+          )}
+          {output && (
+            <Box
+              component="pre"
+              sx={{
+                mt: 2,
+                p: 1,
+                maxHeight: 320,
+                overflow: 'auto',
+                fontSize: '0.8rem',
+                whiteSpace: 'pre-wrap',
+                bgcolor: 'action.hover',
+              }}
+            >
+              {output}
+            </Box>
+          )}
+        </SectionBox>
+      )}
 
       <Dialog open={toDelete !== null} onClose={() => setToDelete(null)}>
         <DialogTitle>Delete cluster {toDelete}?</DialogTitle>

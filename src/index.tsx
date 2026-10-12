@@ -42,6 +42,8 @@ registerRoute({
 registerAddClusterProvider({
   title: 'k3d',
   icon: K3dIcon,
-  description: 'Create a k3s cluster in Docker with the k3d installed on this machine.',
+  description:
+    'Create a k3s cluster in Docker with the k3d installed on this machine. Needs a Headlamp ' +
+    'desktop build whose app-build-manifest.json grants this plugin its k3d commands, such as k3dlamp.',
   url: ROUTE,
 });
