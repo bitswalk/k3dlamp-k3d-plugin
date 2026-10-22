@@ -12,7 +12,7 @@ The plugin checks that k3d works, lists its clusters, creates a cluster from a k
 
 k3dlamp is a Headlamp build with these grants. To use the plugin in your own build, you need:
 
-- Headlamp built from `main` after v0.45.0. The `runCommands` manifest field doesn't exist in v0.45.0 or earlier.
+- Headlamp v0.46.0 or later, the first release with the `runCommands` manifest field.
 - Docker and [k3d](https://k3d.io) on the `PATH` the app starts with.
 - A `runCommands` policy that names this plugin and grants the commands in [`command-grants.json`](command-grants.json).
 

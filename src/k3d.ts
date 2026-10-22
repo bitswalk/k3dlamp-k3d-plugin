@@ -6,7 +6,7 @@
  * No other module may call `pluginRunCommand`, and nothing here builds argv from
  * free-form input: create and delete each append exactly one validated argument.
  */
-// Headlamp main's PluginRunCommand. @kinvolk/headlamp-plugin 0.14.0 neither exports
+// Headlamp v0.46.0's PluginRunCommand. @kinvolk/headlamp-plugin 0.14.0 neither exports
 // it nor types runCommand for tools other than minikube, az and scriptjs.
 type PluginRunCommand = (
   tool: string,
