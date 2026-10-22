@@ -73,6 +73,19 @@ To try a change in a k3dlamp development run, build the plugin into k3dlamp's de
 npm run dev:install
 ```
 
+### Dependency overrides
+
+`overrides` in `package.json` moves build and test tooling that `@kinvolk/headlamp-plugin` pulls in past known vulnerabilities. None of it ends up in `dist/main.js`. `headlamp-plugin upgrade` resets `overrides` to the SDK template, so restore these entries after upgrading, and drop each one once the SDK's own range reaches a fixed version.
+
+| Override | Why |
+| --- | --- |
+| `typescript` 5.6.2 | From the SDK template. |
+| `vitest`, `@vitest/coverage-istanbul` 4.1.12 | The SDK asks for vitest 3, affected by GHSA-82fw-gwwq-j7x9 and GHSA-qxg6-89mg-rqv8; 4.1.11 is also affected by GHSA-xp26-3454-mjgp. Vitest 4 no longer uses tinypool, affected by GHSA-5gmw-xhrv-c9v3 and GHSA-85c8-ppgw-ccpr. The coverage provider must match vitest's version. |
+| `@vitest/mocker` 4.1.12 | Storybook 9 pins 3.2.4, affected by the same vitest advisories. |
+| `webpack-dev-middleware` 7.4.6 | Storybook's webpack builder asks for 6.x, affected by GHSA-g84c-rxfj-3j2c. |
+
+The SDK depends on Storybook, but this plugin never runs it, so the last two only keep the lockfile clear.
+
 ## Release
 
 1. Bump `version` in `package.json` and commit.
