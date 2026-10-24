@@ -4,18 +4,22 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   clusterNameFromContext,
   contextName,
-  CREATE_PREFIX,
+  CREATE_ARGS,
   createCluster,
+  DEFAULT_CLUSTER_NAME,
+  defaultConfig,
   DELETE_PREFIX,
   deleteCluster,
   describeFailure,
   GRANTS_URL,
   K3D,
   LIST_ARGS,
+  MAX_CONFIG_LENGTH,
+  nextClusterName,
   probe,
   REQUIRED_COMMANDS,
   stripAnsi,
-  validateConfigPath,
+  validateConfig,
 } from './k3d';
 
 type Listener = (value: any) => void;
@@ -114,25 +118,56 @@ describe('describeFailure', () => {
       `This build's app-build-manifest.json does not grant the plugin this k3d command. See ${GRANTS_URL}`
     );
   });
+
+  it('asks for a newer k3dlamp when the app refuses standard input', () => {
+    expect(describeFailure({ code: -1, stdout: '', stderr: '' })).toBe(
+      "This app can't pass a config to k3d. Update k3dlamp to 0.4.0 or later."
+    );
+  });
 });
 
 describe('createCluster', () => {
-  it('appends only the config path to the granted prefix and streams output', async () => {
+  it('sends the config on standard input to the exact granted argv and streams output', async () => {
     const calls = fakeRunCommand(0, 'INFO[0001] Cluster created\n');
     const chunks: string[] = [];
-    const result = await createCluster('/opt/bundle/seed.yaml', c => chunks.push(c));
-    expect(calls).toEqual([
-      { tool: K3D, args: [...CREATE_PREFIX, '/opt/bundle/seed.yaml'], options: {} },
-    ]);
+    const config = defaultConfig('seed');
+    const result = await createCluster(config, c => chunks.push(c));
+    expect(calls).toEqual([{ tool: K3D, args: CREATE_ARGS, options: { input: config } }]);
     expect(result.code).toBe(0);
     expect(chunks).toEqual(['INFO[0001] Cluster created\n']);
   });
 
-  it.each(['', '  ', ' /seed.yaml', '--volume', '-c'])('refuses %j', path => {
+  it.each([
+    ['an empty config', ''],
+    ['a blank config', ' \n '],
+    ['a config over 1 MiB', 'x'.repeat(MAX_CONFIG_LENGTH + 1)],
+  ])('refuses %s', (_name, config) => {
     const calls = fakeRunCommand(0);
-    expect(validateConfigPath(path)).not.toBeNull();
-    expect(() => createCluster(path, () => {})).toThrow();
+    expect(validateConfig(config)).not.toBeNull();
+    expect(() => createCluster(config, () => {})).toThrow();
     expect(calls).toEqual([]);
+  });
+});
+
+describe('the default cluster', () => {
+  it('is one k3s server that Headlamp picks up without switching context', () => {
+    const config = defaultConfig('local-aio');
+    expect(config).toMatch(/^apiVersion: k3d\.io\/v1alpha5$/m);
+    expect(config).toMatch(/^kind: Simple$/m);
+    expect(config).toMatch(/^  name: local-aio /m);
+    expect(config).toMatch(/^servers: 1$/m);
+    expect(config).toMatch(/^agents: 0$/m);
+    expect(config).toMatch(/^    updateDefaultKubeconfig: true /m);
+    expect(config).toMatch(/^    switchCurrentContext: false$/m);
+  });
+
+  it.each([
+    [[], DEFAULT_CLUSTER_NAME],
+    [['seed'], 'local-aio'],
+    [['local-aio'], 'local-aio-2'],
+    [['local-aio', 'local-aio-2', 'local-aio-4'], 'local-aio-3'],
+  ])('with clusters %j is named %s', (taken, name) => {
+    expect(nextClusterName(taken)).toBe(name);
   });
 });
 
@@ -175,7 +210,7 @@ describe('command-grants.json', () => {
   it('matches the commands the page lists for builds without them', () => {
     expect(REQUIRED_COMMANDS).toEqual([
       'k3d cluster list -o json',
-      'k3d cluster create --config <path>',
+      'k3d cluster create --config -',
       'k3d cluster delete <name>',
     ]);
   });
@@ -183,7 +218,7 @@ describe('command-grants.json', () => {
   it('lists exactly list, create and delete', () => {
     expect(grants).toEqual([
       { tool: K3D, args: LIST_ARGS },
-      { tool: K3D, args: CREATE_PREFIX, allowTrailingArgs: true },
+      { tool: K3D, args: CREATE_ARGS },
       { tool: K3D, args: DELETE_PREFIX, allowTrailingArgs: true },
     ]);
   });

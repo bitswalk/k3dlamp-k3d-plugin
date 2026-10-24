@@ -1,5 +1,11 @@
-import { ConfigStore, K8s } from '@kinvolk/headlamp-plugin/lib';
-import { Link, SectionBox, SimpleTable } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
+import { Icon } from '@iconify/react';
+import { Activity, ConfigStore, K8s } from '@kinvolk/headlamp-plugin/lib';
+import {
+  Link,
+  Loader,
+  SectionBox,
+  SimpleTable,
+} from '@kinvolk/headlamp-plugin/lib/CommonComponents';
 import {
   Alert,
   AlertTitle,
@@ -12,35 +18,39 @@ import {
   DialogContentText,
   DialogTitle,
   Link as ExternalLink,
-  TextField,
+  Typography,
 } from '@mui/material';
 import React from 'react';
 import { Prompt } from 'react-router-dom';
 import {
   contextName,
   createCluster,
+  defaultConfig,
   deleteCluster,
   describeFailure,
   GRANTS_URL,
   K3dCluster,
   K3dStatus,
+  nextClusterName,
   probe,
   REQUIRED_COMMANDS,
   stripAnsi,
-  validateConfigPath,
 } from './k3d';
+import ManifestEditor from './ManifestEditor';
 
 export const PACKAGE_NAME = '@bitswalk/headlamp-k3d';
 
-const settings = new ConfigStore<{ configPath?: string }>(PACKAGE_NAME);
-const useSettings = settings.useConfig();
+// The custom cluster editor's last draft, kept until a create from it succeeds.
+const settings = new ConfigStore<{ draft?: string }>(PACKAGE_NAME);
+
+const EDITOR_ACTIVITY = 'k3d-custom-cluster';
 
 // Keep the output panel bounded while k3d streams progress.
 const MAX_OUTPUT_CHARS = 64 * 1024;
 
 type Outcome =
   | { severity: 'success'; text: string; cluster?: string }
-  | { severity: 'error'; text: string };
+  | { severity: 'error'; text: string; fromEditor: boolean };
 
 function ClusterLink({ name }: { name: string }) {
   const known = K8s.useClustersConf() ?? {};
@@ -78,14 +88,46 @@ function GrantsRequired() {
   );
 }
 
+/** k3d's empty cluster list, laid out like Headlamp's home page without clusters. */
+function NoClusters({ onAdd, disabled }: { onAdd: () => void; disabled: boolean }) {
+  return (
+    <Box
+      display="flex"
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+      minHeight="400px"
+      textAlign="center"
+    >
+      <Icon icon="mdi:cube-outline" style={{ fontSize: 64, color: '#ccc', marginBottom: 16 }} />
+      <Typography variant="h6" gutterBottom>
+        No k3d clusters
+      </Typography>
+      <Typography variant="body2" color="text.secondary" paragraph>
+        Add a single-server cluster to get started, or write your own config with Custom cluster.
+      </Typography>
+      <Button
+        variant="contained"
+        startIcon={<Icon icon="mdi:plus" />}
+        onClick={onAdd}
+        disabled={disabled}
+      >
+        Add cluster
+      </Button>
+    </Box>
+  );
+}
+
 export default function K3dPage() {
-  const savedPath = useSettings()?.configPath ?? '';
   const [status, setStatus] = React.useState<K3dStatus | null>(null);
-  const [configPath, setConfigPath] = React.useState(savedPath);
   const [running, setRunning] = React.useState<string | null>(null);
   const [output, setOutput] = React.useState('');
   const [outcome, setOutcome] = React.useState<Outcome | null>(null);
   const [toDelete, setToDelete] = React.useState<string | null>(null);
+
+  const clusters = status?.state === 'ready' ? status.clusters : [];
+  const ready = status?.state === 'ready';
+  const busy = running !== null;
 
   const refresh = React.useCallback(async () => {
     setStatus(null);
@@ -98,23 +140,29 @@ export default function K3dPage() {
     refresh();
   }, [refresh]);
 
+  // The editor lives in an activity outside this page: close it with the page,
+  // so its Create never starts k3d with nothing showing the progress.
+  React.useEffect(() => () => Activity.close(EDITOR_ACTIVITY), []);
+
   function appendOutput(chunk: string) {
     // Strip the joined text, so a colour code split across chunks is still removed.
     setOutput(previous => stripAnsi(previous + chunk).slice(-MAX_OUTPUT_CHARS));
   }
 
-  async function handleCreate() {
-    const before = new Set(status?.state === 'ready' ? status.clusters.map(c => c.name) : []);
-    settings.update({ configPath });
+  async function create(config: string, fromEditor: boolean) {
+    const before = new Set(clusters.map(c => c.name));
     setRunning('Creating cluster');
     setOutput('');
     setOutcome(null);
     try {
-      const result = await createCluster(configPath, appendOutput);
+      const result = await createCluster(config, appendOutput);
       const after = await refresh();
       if (result.code !== 0) {
-        setOutcome({ severity: 'error', text: describeFailure(result) });
+        setOutcome({ severity: 'error', text: describeFailure(result), fromEditor });
         return;
+      }
+      if (fromEditor) {
+        settings.update({ draft: undefined });
       }
       const created =
         after.state === 'ready' ? after.clusters.find(c => !before.has(c.name)) : undefined;
@@ -124,10 +172,38 @@ export default function K3dPage() {
         cluster: created?.name,
       });
     } catch (err) {
-      setOutcome({ severity: 'error', text: (err as Error).message });
+      setOutcome({ severity: 'error', text: (err as Error).message, fromEditor });
     } finally {
       setRunning(null);
     }
+  }
+
+  // The activity keeps the callbacks it launched with, so route them through a
+  // ref to reach this render's state.
+  const createFromEditor = React.useRef(create);
+  createFromEditor.current = create;
+
+  function openEditor() {
+    const template = defaultConfig(nextClusterName(clusters.map(c => c.name)));
+    const close = () => Activity.close(EDITOR_ACTIVITY);
+    Activity.launch({
+      id: EDITOR_ACTIVITY,
+      title: 'Create a k3d cluster',
+      location: 'full',
+      icon: <Icon icon="mdi:cube-outline" />,
+      content: (
+        <ManifestEditor
+          initial={settings.get()?.draft ?? template}
+          template={template}
+          onChange={draft => settings.update({ draft })}
+          onCreate={config => {
+            close();
+            createFromEditor.current(config, true);
+          }}
+          onClose={close}
+        />
+      ),
+    });
   }
 
   async function handleDelete(name: string) {
@@ -141,34 +217,58 @@ export default function K3dPage() {
       setOutcome(
         result.code === 0
           ? { severity: 'success', text: `Cluster ${name} was deleted.` }
-          : { severity: 'error', text: describeFailure(result) }
+          : { severity: 'error', text: describeFailure(result), fromEditor: false }
       );
     } catch (err) {
-      setOutcome({ severity: 'error', text: (err as Error).message });
+      setOutcome({ severity: 'error', text: (err as Error).message, fromEditor: false });
     } finally {
       setRunning(null);
     }
   }
 
-  const ready = status?.state === 'ready';
-  const pathError = configPath === '' ? null : validateConfigPath(configPath);
+  const addCluster = () => create(defaultConfig(nextClusterName(clusters.map(c => c.name))), false);
+
+  const actions = ready
+    ? [
+        ...(clusters.length > 0
+          ? [
+              <Button
+                key="add"
+                variant="contained"
+                startIcon={<Icon icon="mdi:plus" />}
+                onClick={addCluster}
+                disabled={busy}
+              >
+                Add cluster
+              </Button>,
+            ]
+          : []),
+        <Button
+          key="custom"
+          variant="contained"
+          color="secondary"
+          startIcon={<Icon icon="mdi:file-document-edit-outline" />}
+          onClick={openEditor}
+          disabled={busy}
+          sx={{ ml: 1 }}
+        >
+          Custom cluster
+        </Button>,
+      ]
+    : [];
 
   return (
     <>
-      <Prompt when={running !== null} message="k3d is still running. Leave this page anyway?" />
+      <Prompt when={busy} message="k3d is still running. Leave this page anyway?" />
 
-      <SectionBox title="k3d">
-        {status === null && (
-          <Alert severity="info" icon={<CircularProgress size={18} />}>
-            Checking k3d…
-          </Alert>
-        )}
+      <SectionBox title="k3d" headerProps={{ headerStyle: 'main', actions }}>
+        {status === null && <Loader title="Checking k3d" />}
         {status?.state === 'ungranted' && <GrantsRequired />}
         {status?.state === 'unavailable' && (
           <Alert
             severity="error"
             action={
-              <Button color="inherit" size="small" onClick={refresh} disabled={running !== null}>
+              <Button color="inherit" size="small" onClick={refresh} disabled={busy}>
                 Retry
               </Button>
             }
@@ -176,9 +276,9 @@ export default function K3dPage() {
             {status.reason}
           </Alert>
         )}
-        {status?.state === 'ready' && (
+        {ready && clusters.length === 0 && <NoClusters onAdd={addCluster} disabled={busy} />}
+        {ready && clusters.length > 0 && (
           <SimpleTable
-            emptyMessage="k3d is installed and has no clusters."
             columns={[
               { label: 'Cluster', getter: (c: K3dCluster) => <ClusterLink name={c.name} /> },
               {
@@ -195,7 +295,7 @@ export default function K3dPage() {
                   <Button
                     color="error"
                     size="small"
-                    disabled={running !== null}
+                    disabled={busy}
                     onClick={() => setToDelete(c.name)}
                   >
                     Delete
@@ -203,68 +303,54 @@ export default function K3dPage() {
                 ),
               },
             ]}
-            data={status.clusters}
+            data={clusters}
           />
         )}
-      </SectionBox>
 
-      {status?.state !== 'ungranted' && (
-        <SectionBox title="Create a cluster">
-          <Box display="flex" gap={2} alignItems="flex-start">
-            <TextField
-              label="k3d config file"
-              placeholder="/path/to/cluster.yaml"
-              helperText={pathError ?? 'Absolute path to a k3d.io/v1alpha5 Simple config.'}
-              error={pathError !== null}
-              value={configPath}
-              onChange={event => setConfigPath(event.target.value)}
-              disabled={!ready || running !== null}
-              fullWidth
-              size="small"
-            />
-            <Button
-              variant="contained"
-              onClick={handleCreate}
-              disabled={!ready || running !== null || validateConfigPath(configPath) !== null}
-            >
-              Create
-            </Button>
+        {running && (
+          <Alert severity="info" icon={<CircularProgress size={18} />} sx={{ mt: 2 }}>
+            {running}…
+          </Alert>
+        )}
+        {outcome && (
+          <Alert
+            severity={outcome.severity}
+            sx={{ mt: 2 }}
+            action={
+              outcome.severity === 'error' &&
+              outcome.fromEditor && (
+                <Button color="inherit" size="small" onClick={openEditor} disabled={busy}>
+                  Edit config
+                </Button>
+              )
+            }
+          >
+            {outcome.text}
+            {outcome.severity === 'success' && outcome.cluster && (
+              <>
+                {' '}
+                Open <ClusterLink name={outcome.cluster} />.
+              </>
+            )}
+          </Alert>
+        )}
+        {output && (
+          <Box
+            component="pre"
+            sx={{
+              mt: 2,
+              p: 1,
+              maxHeight: 320,
+              overflow: 'auto',
+              fontSize: '0.8rem',
+              whiteSpace: 'pre-wrap',
+              bgcolor: 'action.hover',
+            }}
+          >
+            {output}
           </Box>
-
-          {running && (
-            <Alert severity="info" icon={<CircularProgress size={18} />} sx={{ mt: 2 }}>
-              {running}…
-            </Alert>
-          )}
-          {outcome && (
-            <Alert severity={outcome.severity} sx={{ mt: 2 }}>
-              {outcome.text}
-              {outcome.severity === 'success' && outcome.cluster && (
-                <>
-                  {' '}
-                  Open <ClusterLink name={outcome.cluster} />.
-                </>
-              )}
-            </Alert>
-          )}
-          {output && (
-            <Box
-              component="pre"
-              sx={{
-                mt: 2,
-                p: 1,
-                maxHeight: 320,
-                overflow: 'auto',
-                fontSize: '0.8rem',
-                whiteSpace: 'pre-wrap',
-                bgcolor: 'action.hover',
-              }}
-            >
-              {output}
-            </Box>
-          )}
-        </SectionBox>
-      )}
+        )}
+      </SectionBox>
 
       <Dialog open={toDelete !== null} onClose={() => setToDelete(null)}>
         <DialogTitle>Delete cluster {toDelete}?</DialogTitle>

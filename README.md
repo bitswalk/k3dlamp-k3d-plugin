@@ -4,22 +4,27 @@
 
 A Headlamp Desktop plugin that creates and deletes k3d clusters. It is built for [k3dlamp](https://github.com/bitswalk/k3dlamp) and published on [Artifact Hub](https://artifacthub.io/packages/headlamp/bitswalk/k3dlamp-k3d-plugin).
 
-The plugin checks that k3d works, lists its clusters, creates a cluster from a k3d config file, and deletes one. k3d adds each new cluster to the default kubeconfig. Headlamp watches that file, so the cluster appears in the cluster list as `k3d-<name>`.
+The plugin checks that k3d works, lists its clusters, creates clusters, and deletes them. k3d adds each new cluster to the default kubeconfig. Headlamp watches that file, so the cluster appears in the cluster list as `k3d-<name>`.
+
+Its **k3d** page, also reached from **Add Cluster → Providers → k3d**, creates a cluster two ways:
+
+- **Add cluster** creates a cluster with one k3s server and no agents, named `local-aio`, or `local-aio-2` and so on if that name is taken.
+- **Custom cluster**, at the top right, opens an editor on that same config. Edit it or upload a k3d config file, then click **Create**. The editor keeps the draft until a create from it succeeds, so **Edit config** on a failure reopens it as it was.
 
 ## Requirements
 
-**This plugin works only in a Headlamp desktop build whose `app-build-manifest.json` grants it three k3d commands.** Headlamp runs a plugin's local commands only when the build's manifest grants them, and stock Headlamp releases grant none to this plugin. Installed there, the plugin shows a notice listing the missing grants instead of the k3d page.
+**This plugin works only in a Headlamp desktop build whose `app-build-manifest.json` grants it three k3d commands, and that passes standard input to them.** Headlamp runs a plugin's local commands only when the build's manifest grants them, and stock Headlamp releases grant none to this plugin. Installed there, the plugin shows a notice listing the missing grants instead of the k3d page.
 
 k3dlamp is a Headlamp build with these grants. To use the plugin in your own build, you need:
 
-- Headlamp v0.46.0 or later, the first release with the `runCommands` manifest field.
+- Headlamp v0.46.0 or later, the first release with the `runCommands` manifest field, with k3dlamp's [`0004-run-command-input.patch`](https://github.com/bitswalk/k3dlamp/blob/main/patches/0004-run-command-input.patch). Stock Headlamp passes a plugin's command no standard input, which is how the plugin hands k3d a cluster config. k3dlamp 0.4.0 and later carry it.
 - Docker and [k3d](https://k3d.io) on the `PATH` the app starts with.
 - A `runCommands` policy that names this plugin and grants the commands in [`command-grants.json`](command-grants.json).
 
 | Invocation | Match | Plugin use |
 | --- | --- | --- |
 | `k3d cluster list -o json` | Exact | Checks that k3d runs and lists clusters |
-| `k3d cluster create --config <path>` | Prefix | Creates a cluster from a config file |
+| `k3d cluster create --config -` | Exact | Creates a cluster from the config it sends on standard input |
 | `k3d cluster delete <name>` | Prefix | Deletes a cluster |
 
 For the plugin installed from Artifact Hub, the policy is:
@@ -37,7 +42,7 @@ For the plugin installed from Artifact Hub, the policy is:
   ],
   "commands": [
     { "tool": "k3d", "args": ["cluster", "list", "-o", "json"] },
-    { "tool": "k3d", "args": ["cluster", "create", "--config"], "allowTrailingArgs": true },
+    { "tool": "k3d", "args": ["cluster", "create", "--config", "-"] },
     { "tool": "k3d", "args": ["cluster", "delete"], "allowTrailingArgs": true }
   ]
 }
@@ -45,7 +50,7 @@ For the plugin installed from Artifact Hub, the policy is:
 
 Headlamp's [command capabilities guide](https://headlamp.dev/docs/latest/development/plugins/command-capabilities) recommends also pinning `artifactHubPackageId` and `artifactHubRepositoryId`; [k3dlamp's manifest](https://github.com/bitswalk/k3dlamp/blob/main/app-build-manifest.json) shows them. A policy for the `user` location can't pre-approve commands, so Headlamp asks for consent the first time each of the three runs, and remembers the answer.
 
-The plugin appends exactly one argument to `create` and to `delete`. It rejects a path or name that starts with `-`, so `--all` and extra flags can't get through. `src/k3d.ts` is the only module that runs a command, and a unit test fails if its argv drifts from `command-grants.json`.
+The plugin sends `create` exactly as granted, with the config on standard input, and appends exactly one argument to `delete`: a cluster name, checked against k3d's naming rules, so `--all` and extra flags can't get through. A config is any text up to 1 MiB, the most k3dlamp passes; k3d checks it. `src/k3d.ts` is the only module that runs a command, and a unit test fails if its argv drifts from `command-grants.json`.
 
 The plugin builds against `@kinvolk/headlamp-plugin` 0.14.0, which predates the `PluginRunCommand` type, so `k3d.ts` declares that type itself.
 
@@ -55,6 +60,7 @@ The plugin builds against `@kinvolk/headlamp-plugin` 0.14.0, which predates the 
 | --- | --- |
 | The build grants no k3d command, or this is a browser deployment | A notice listing the three grants it needs |
 | `k3d` isn't on `PATH` | "k3d is not installed, or not on the PATH this app was started with." |
+| The build can't pass standard input, such as k3dlamp before 0.4.0 | "This app can't pass a config to k3d. Update k3dlamp to 0.4.0 or later." |
 | Consent was denied | "The k3d command was denied in the consent prompt, and the app keeps that choice." |
 | k3d fails, for example Docker is down | k3d's own stderr |
 
