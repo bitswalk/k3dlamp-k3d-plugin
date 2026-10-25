@@ -1,0 +1,30 @@
+version: 0.3.0
+name: k3dlamp-k3d-plugin
+displayName: k3d for k3dlamp
+createdAt: "2026-10-25T10:29:13Z"
+description: >-
+  Create and delete k3d clusters from Headlamp Desktop. Works only in a Headlamp
+  desktop build whose app-build-manifest.json grants this plugin three k3d
+  commands, such as k3dlamp. Stock Headlamp releases don't grant them.
+license: Apache-2.0
+homeURL: https://github.com/bitswalk/k3dlamp-k3d-plugin
+logoURL: https://raw.githubusercontent.com/bitswalk/k3dlamp/main/branding/overlay/frontend/public/android-chrome-512x512.png
+keywords:
+  - k3d
+  - k3s
+  - local cluster
+  - k3dlamp
+links:
+  - name: Source
+    url: https://github.com/bitswalk/k3dlamp-k3d-plugin
+  - name: k3dlamp
+    url: https://github.com/bitswalk/k3dlamp
+install: |
+  This plugin works only in a Headlamp desktop build whose
+  `app-build-manifest.json` grants it three k3d commands.
+  [k3dlamp](https://github.com/bitswalk/k3dlamp) is such a build; stock Headlamp
+  releases aren't. See [Requirements](https://github.com/bitswalk/k3dlamp-k3d-plugin#requirements) for the grants.
+annotations:
+  headlamp/plugin/archive-url: "https://github.com/bitswalk/k3dlamp-k3d-plugin/releases/download/v0.3.0/bitswalk-headlamp-k3d-0.3.0.tar.gz"
+  headlamp/plugin/archive-checksum: "sha256:03f8a7c287f9d11956fede92b72fe6e63d1acbfb48bc31aa0fa8d62ab5db4f89"
+  headlamp/plugin/distro-compat: "app"
