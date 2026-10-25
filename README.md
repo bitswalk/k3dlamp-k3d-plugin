@@ -92,6 +92,8 @@ npm run dev:install
 
 The SDK depends on Storybook, but this plugin never runs it, so the last two only keep the lockfile clear.
 
+`elliptic` has no override because no release fixes GHSA-848j-6mx2-7j84. It comes from `vite-plugin-node-polyfills` through `node-stdlib-browser` and `crypto-browserify`. The SDK's build only enables the `process`, `buffer` and `stream` polyfills, and this plugin never imports `crypto`, so `elliptic` is not in `dist/main.js`.
+
 ## Release
 
 1. Bump `version` in `package.json` and commit.
