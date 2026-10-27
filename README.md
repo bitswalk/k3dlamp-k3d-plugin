@@ -4,7 +4,7 @@
 
 A Headlamp Desktop plugin that creates and deletes k3d clusters. It is built for [k3dlamp](https://github.com/bitswalk/k3dlamp) and published on [Artifact Hub](https://artifacthub.io/packages/headlamp/bitswalk-k3dlamp-k3d-plugin/k3dlamp-k3d-plugin).
 
-The plugin checks that k3d works, lists its clusters, creates clusters, and deletes them. k3d adds each new cluster to the default kubeconfig. Headlamp watches that file, so the cluster appears in the cluster list as `k3d-<name>`.
+The plugin checks that k3d works, lists its clusters, creates clusters, and deletes them. It lists them as Headlamp's home page lists clusters: origin, status, warnings and Kubernetes version, with **Delete** in each row's **Actions** menu. k3d adds each new cluster to the default kubeconfig. Headlamp watches that file, so the cluster appears in the cluster list as `k3d-<name>`.
 
 Its **k3d** page, also reached from **Add Cluster → Providers → k3d**, creates a cluster two ways:
 
@@ -63,6 +63,8 @@ The plugin builds against `@kinvolk/headlamp-plugin` 0.14.0, which predates the 
 | The build can't pass standard input, such as k3dlamp before 0.4.0 | "This app can't pass a config to k3d. Update k3dlamp to 0.4.0 or later." |
 | Consent was denied | "The k3d command was denied in the consent prompt, and the app keeps that choice." |
 | k3d fails, for example Docker is down | k3d's own stderr |
+| k3d has a cluster that the kubeconfig has no context for | The cluster's status is "Not in kubeconfig", and its tooltip gives the `k3d kubeconfig merge` command that adds it back |
+| k3d reports none of a cluster's servers running, as after `k3d cluster stop` | The cluster's status is "Stopped", and its tooltip gives the `k3d cluster start` command |
 
 ## Develop
 

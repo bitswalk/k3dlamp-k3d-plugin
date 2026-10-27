@@ -1,11 +1,6 @@
 import { Icon } from '@iconify/react';
-import { Activity, ConfigStore, K8s } from '@kinvolk/headlamp-plugin/lib';
-import {
-  Link,
-  Loader,
-  SectionBox,
-  SimpleTable,
-} from '@kinvolk/headlamp-plugin/lib/CommonComponents';
+import { Activity, ConfigStore } from '@kinvolk/headlamp-plugin/lib';
+import { Loader, SectionBox } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
 import {
   Alert,
   AlertTitle,
@@ -22,14 +17,13 @@ import {
 } from '@mui/material';
 import React from 'react';
 import { Prompt } from 'react-router-dom';
+import ClusterTable, { ClusterLink } from './ClusterTable';
 import {
-  contextName,
   createCluster,
   defaultConfig,
   deleteCluster,
   describeFailure,
   GRANTS_URL,
-  K3dCluster,
   K3dStatus,
   nextClusterName,
   probe,
@@ -51,19 +45,6 @@ const MAX_OUTPUT_CHARS = 64 * 1024;
 type Outcome =
   | { severity: 'success'; text: string; cluster?: string }
   | { severity: 'error'; text: string; fromEditor: boolean };
-
-function ClusterLink({ name }: { name: string }) {
-  const known = K8s.useClustersConf() ?? {};
-  const context = contextName(name);
-  if (!known[context]) {
-    return <span title="Not in your kubeconfig">{context}</span>;
-  }
-  return (
-    <Link routeName="cluster" params={{ cluster: context }}>
-      {context}
-    </Link>
-  );
-}
 
 /** Explains, in a build that lacks them, the grants this plugin needs. */
 function GrantsRequired() {
@@ -278,32 +259,11 @@ export default function K3dPage() {
         )}
         {ready && clusters.length === 0 && <NoClusters onAdd={addCluster} disabled={busy} />}
         {ready && clusters.length > 0 && (
-          <SimpleTable
-            columns={[
-              { label: 'Cluster', getter: (c: K3dCluster) => <ClusterLink name={c.name} /> },
-              {
-                label: 'Servers',
-                getter: (c: K3dCluster) => `${c.serversRunning}/${c.serversCount}`,
-              },
-              {
-                label: 'Agents',
-                getter: (c: K3dCluster) => `${c.agentsRunning}/${c.agentsCount}`,
-              },
-              {
-                label: '',
-                getter: (c: K3dCluster) => (
-                  <Button
-                    color="error"
-                    size="small"
-                    disabled={busy}
-                    onClick={() => setToDelete(c.name)}
-                  >
-                    Delete
-                  </Button>
-                ),
-              },
-            ]}
-            data={clusters}
+          <ClusterTable
+            key={clusters.map(c => c.name).join(',')}
+            clusters={clusters}
+            busy={busy}
+            onDelete={setToDelete}
           />
         )}
 
